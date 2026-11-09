@@ -4,6 +4,9 @@ import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.Intent
+import android.nfc.NfcAdapter
+import android.provider.Settings
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
@@ -31,7 +34,8 @@ import org.multipaz.context.initializeApplication
  * implements a separate ISO/IEC 18013-5 reader on top of Multipaz:
  *  - isAndroidReaderSupported
  *  - requestAndroidReaderPermissions
- *  - readMdlFromQr
+ *  - readMdlFromQr / readMdlFromNfc
+ *  - getNfcStatus / openNfcSettings
  *  - cancelMdlRead
  * The iOS method names return `false` / `notSupported` here.
  */
@@ -75,6 +79,9 @@ class WalletVerifierApiPlugin :
             "hasAndroidReaderPermissions" -> result.success(missingPermissions().isEmpty())
             "requestAndroidReaderPermissions" -> requestPermissions(result)
             "readMdlFromQr" -> readMdlFromQr(call, result)
+            "readMdlFromNfc" -> readMdlFromNfc(call, result)
+            "getNfcStatus" -> result.success(nfcStatus())
+            "openNfcSettings" -> result.success(openNfcSettings())
             "cancelMdlRead" -> {
                 activeRead?.cancel(CancellationException("Cancelled from Dart"))
                 result.success(null)
@@ -133,22 +140,37 @@ class WalletVerifierApiPlugin :
         return true
     }
 
-    private fun readMdlFromQr(call: MethodCall, result: Result) {
+    private fun nfcStatus(): String {
+        val adapter = NfcAdapter.getDefaultAdapter(context) ?: return "unsupported"
+        return if (adapter.isEnabled) "enabled" else "disabled"
+    }
+
+    private fun openNfcSettings(): Boolean {
+        val launcher: Context = activityBinding?.activity ?: context
+        for (action in listOf(Settings.ACTION_NFC_SETTINGS, Settings.ACTION_WIRELESS_SETTINGS)) {
+            val intent = Intent(action)
+            if (launcher !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (runCatching { launcher.startActivity(intent) }.isSuccess) return true
+        }
+        return false
+    }
+
+    /** Validates the shared arguments; reports the error and returns null if the read can't start. */
+    private fun parseReadRequest(call: MethodCall, result: Result): MdlReadRequest? {
         if (!isReaderSupported()) {
             result.error("notSupported", "This device can't act as an mDL reader (needs Android 12+ and Bluetooth LE)", null)
-            return
+            return null
         }
         if (missingPermissions().isNotEmpty()) {
             result.error("notAllowed", "Bluetooth permissions not granted; call requestAndroidReaderPermissions()", null)
-            return
+            return null
         }
-        val qrContent = call.argument<String>("qrContent")
         val elements = call.argument<List<String>>("elements")
-        if (qrContent == null || elements.isNullOrEmpty()) {
-            result.error("invalidArgument", "qrContent and a non-empty elements list are required", null)
-            return
+        if (elements.isNullOrEmpty()) {
+            result.error("invalidArgument", "A non-empty elements list is required", null)
+            return null
         }
-        val request = MdlReadRequest(
+        return MdlReadRequest(
             docType = call.argument<String>("docType") ?: MDL_DOCTYPE,
             namespace = call.argument<String>("namespace") ?: MDL_NAMESPACE,
             elements = elements,
@@ -156,10 +178,43 @@ class WalletVerifierApiPlugin :
             additionalRootsPem = call.argument<List<String>>("additionalTrustedRootsPem") ?: emptyList(),
             vical = call.argument<ByteArray>("vical"),
         )
+    }
+
+    private fun readMdlFromQr(call: MethodCall, result: Result) {
+        val qrContent = call.argument<String>("qrContent")
+        if (qrContent == null) {
+            result.error("invalidArgument", "qrContent is required", null)
+            return
+        }
+        val request = parseReadRequest(call, result) ?: return
+        startRead(result) { reader.readFromQr(qrContent, request) }
+    }
+
+    private fun readMdlFromNfc(call: MethodCall, result: Result) {
+        when (nfcStatus()) {
+            "unsupported" -> {
+                result.error("notSupported", "This device has no NFC", null)
+                return
+            }
+            "disabled" -> {
+                result.error("nfcDisabled", "NFC is turned off", null)
+                return
+            }
+        }
+        val request = parseReadRequest(call, result) ?: return
+        if (activityBinding?.activity == null) {
+            result.error("notSupported", "No foreground activity to enable NFC reader mode", null)
+            return
+        }
+        val tagReader = ActivityNfcTagReader { activityBinding?.activity }
+        startRead(result) { reader.readFromNfc(tagReader, request) }
+    }
+
+    private fun startRead(result: Result, block: suspend () -> Map<String, Any?>) {
         activeRead?.cancel(CancellationException("Superseded by a new read"))
         activeRead = scope.launch {
             try {
-                result.success(reader.readFromQr(qrContent, request))
+                result.success(block())
             } catch (e: MdlReadException) {
                 result.error(e.code, e.message, null)
             } catch (e: CancellationException) {

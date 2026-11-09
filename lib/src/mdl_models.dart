@@ -100,6 +100,8 @@ class MdlReadResult {
     this.validUntil,
     this.integrityError,
     this.trustError,
+    this.engagement = MdlEngagement.unknown,
+    this.transport,
   });
 
   /// Parses the map sent by the Android plugin.
@@ -125,6 +127,8 @@ class MdlReadResult {
       validUntil: _parseDate(map['validUntil']),
       integrityError: map['integrityError'] as String?,
       trustError: map['trustError'] as String?,
+      engagement: MdlEngagement.fromName(map['engagement'] as String?),
+      transport: map['transport'] as String?,
     );
   }
 
@@ -154,6 +158,12 @@ class MdlReadResult {
   final String? integrityError;
   final String? trustError;
 
+  /// How the reader and the wallet found each other.
+  final MdlEngagement engagement;
+
+  /// What carried the data: `"Bluetooth"` or `"NFC"`.
+  final String? transport;
+
   /// Both checks passed: the data is authentic and from a trusted issuer.
   bool get isVerified => dataIntegrityVerified && issuerTrusted;
 
@@ -168,4 +178,52 @@ class MdlReadResult {
 
   static DateTime? _parseDate(Object? value) =>
       value is String ? DateTime.tryParse(value) : null;
+}
+
+/// How an mDL read was started (ISO/IEC 18013-5 device engagement).
+enum MdlEngagement {
+  /// The holder showed an `mdoc:` QR code.
+  qr,
+
+  /// NFC tap; the wallet's NDEF tag listed its transports (static handover).
+  nfcStaticHandover,
+
+  /// NFC tap; reader and wallet agreed on a transport (negotiated handover).
+  /// Apple Wallet and Google Wallet use this.
+  nfcNegotiatedHandover,
+
+  /// NFC tap using the draft NFCv2 handover (not requested today).
+  nfcV2Handover,
+
+  /// Not reported by the platform.
+  unknown;
+
+  /// Parses the name sent by the Android plugin, falling back to [unknown].
+  static MdlEngagement fromName(String? name) =>
+      values.firstWhere((value) => value.name == name, orElse: () => unknown);
+
+  /// Whether the read started with an NFC tap.
+  bool get isNfc =>
+      this == nfcStaticHandover ||
+      this == nfcNegotiatedHandover ||
+      this == nfcV2Handover;
+}
+
+/// State of this device's NFC hardware, for reading IDs by tap.
+enum MdlNfcStatus {
+  /// No NFC hardware (or not Android).
+  unsupported,
+
+  /// NFC exists but is turned off in Settings.
+  disabled,
+
+  /// NFC is on; [WalletVerifierApi.verifyMdlFromNfc] can be used.
+  enabled;
+
+  /// Parses the name sent by the Android plugin, falling back to
+  /// [unsupported].
+  static MdlNfcStatus fromName(String? name) => values.firstWhere(
+    (value) => value.name == name,
+    orElse: () => unsupported,
+  );
 }

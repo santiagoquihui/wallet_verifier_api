@@ -25,7 +25,14 @@ import org.multipaz.mdoc.request.buildDeviceRequest
 import org.multipaz.mdoc.response.DeviceResponse
 import org.multipaz.mdoc.role.MdocRole
 import org.multipaz.mdoc.sessionencryption.SessionEncryption
+import org.multipaz.mdoc.nfc.MdocHandoverType
+import org.multipaz.mdoc.nfc.MdocReaderNfcHandoverOptions
+import org.multipaz.mdoc.nfc.scanMdocReader
+import org.multipaz.mdoc.connectionmethod.MdocConnectionMethodNfc
+import org.multipaz.mdoc.transport.MdocTransport
 import org.multipaz.mdoc.transport.MdocTransportFactory
+import org.multipaz.nfc.NfcTagReader
+import org.multipaz.util.UUID
 import org.multipaz.mdoc.transport.MdocTransportOptions
 import org.multipaz.util.Constants
 import org.multipaz.util.fromBase64Url
@@ -47,7 +54,7 @@ internal data class MdlReadRequest(
 )
 
 /**
- * ISO/IEC 18013-5 mdoc reader: QR device engagement -> BLE -> DeviceRequest -> DeviceResponse.
+ * ISO/IEC 18013-5 mdoc reader: QR or NFC device engagement -> BLE (or NFC) -> DeviceRequest -> DeviceResponse.
  *
  * Personal data is only held in memory and returned to Dart; nothing is logged or stored.
  */
@@ -63,39 +70,101 @@ internal class MdlProximityReader(private val trustStore: MdlTrustStore) {
         } catch (e: Exception) {
             throw MdlReadException("invalidArgument", "mdoc: URI is not valid base64url", e)
         }
-        val deviceEngagement = try {
-            DeviceEngagement.fromDataItem(Cbor.decode(encodedDeviceEngagement))
-        } catch (e: Exception) {
-            throw MdlReadException("invalidArgument", "Could not parse the device engagement: ${e.message}", e)
-        }
-        return try {
-            withTimeout(request.timeoutMillis) {
-                // QR engagement uses a null Handover (ISO 18013-5 9.1.5.1).
-                readOverBle(encodedDeviceEngagement, deviceEngagement, Simple.NULL, request)
-            }
-        } catch (e: TimeoutCancellationException) {
-            throw MdlReadException("timedOut", "Timed out waiting for the wallet", e)
+        val deviceEngagement = parseDeviceEngagement(encodedDeviceEngagement)
+        val connectionMethod = selectConnectionMethod(
+            MdocConnectionMethod.disambiguate(deviceEngagement.connectionMethods, MdocRole.MDOC_READER),
+            allowNfc = false,
+        ) ?: throw MdlReadException("notSupported", "The wallet did not offer a Bluetooth LE connection")
+        return withReadTimeout(request) {
+            val transport = MdocTransportFactory.Default.createTransport(
+                connectionMethod,
+                MdocRole.MDOC_READER,
+                MdocTransportOptions(),
+            )
+            // QR engagement uses a null Handover (ISO 18013-5 9.1.5.1).
+            exchange(transport, encodedDeviceEngagement, deviceEngagement, Simple.NULL, request, ENGAGEMENT_QR)
         }
     }
 
-    // TODO(stage 2): NFC engagement. Use org.multipaz.nfc.NfcTagReader + mdocReaderNfcHandover()
-    //  to obtain the DeviceEngagement and Handover, then call readOverBle() (or keep NFC as the
-    //  transport) with that handover instead of Simple.NULL.
+    /**
+     * NFC engagement: waits (in Android NFC reader mode) for a wallet to be tapped, performs ISO 18013-5
+     * NFC Static Handover or Negotiated Handover (Multipaz picks based on what the wallet's NDEF tag
+     * advertises), then runs the same encrypted request/response over the agreed transport.
+     *
+     * Negotiated Handover (Apple Wallet, Google Wallet): we offer BLE in both mdoc central client and
+     * mdoc peripheral server mode and the wallet chooses. Static Handover: the wallet lists what it
+     * supports and we prefer BLE, falling back to NFC data transfer (phones must stay together).
+     */
+    suspend fun readFromNfc(tagReader: NfcTagReader, request: MdlReadRequest): Map<String, Any?> =
+        withReadTimeout(request) {
+            val bleUuid = UUID.randomUUID()
+            val scanResult = try {
+                tagReader.scanMdocReader(
+                    message = null,
+                    options = MdocTransportOptions(),
+                    // ISO 18013-5:2021 NDEF handover. NFCv2 (draft 18013-5 2nd ed.) is not used: wallets
+                    // in the field, including Apple Wallet, implement the 2021 edition.
+                    handoverOptions = MdocReaderNfcHandoverOptions(useNfcV2 = false),
+                    selectConnectionMethod = { methods -> selectConnectionMethod(methods, allowNfc = true) },
+                    negotiatedHandoverConnectionMethods = listOf(
+                        MdocConnectionMethodBle(
+                            supportsPeripheralServerMode = false,
+                            supportsCentralClientMode = true,
+                            peripheralServerModeUuid = null,
+                            centralClientModeUuid = bleUuid,
+                        ),
+                        MdocConnectionMethodBle(
+                            supportsPeripheralServerMode = true,
+                            supportsCentralClientMode = false,
+                            peripheralServerModeUuid = bleUuid,
+                            centralClientModeUuid = null,
+                        ),
+                    ),
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: MdlReadException) {
+                throw e
+            } catch (e: Exception) {
+                throw MdlReadException("transportFailed", "NFC handover with the wallet failed: ${e.message}", e)
+            } ?: throw MdlReadException("cancelled", "No compatible connection method was selected")
 
-    private suspend fun readOverBle(
+            val engagement = when (scanResult.type) {
+                MdocHandoverType.STATIC_HANDOVER -> ENGAGEMENT_NFC_STATIC
+                MdocHandoverType.NEGOTIATED_HANDOVER -> ENGAGEMENT_NFC_NEGOTIATED
+                MdocHandoverType.V2_HANDOVER -> ENGAGEMENT_NFC_V2
+            }
+            val encodedDeviceEngagement = scanResult.encodedDeviceEngagement.toByteArray()
+            exchange(
+                scanResult.transport,
+                encodedDeviceEngagement,
+                parseDeviceEngagement(encodedDeviceEngagement),
+                scanResult.handover,
+                request,
+                engagement,
+            )
+        }
+
+    private suspend fun <T> withReadTimeout(request: MdlReadRequest, block: suspend () -> T): T = try {
+        withTimeout(request.timeoutMillis) { block() }
+    } catch (e: TimeoutCancellationException) {
+        throw MdlReadException("timedOut", "Timed out waiting for the wallet", e)
+    }
+
+    private fun parseDeviceEngagement(encoded: ByteArray): DeviceEngagement = try {
+        DeviceEngagement.fromDataItem(Cbor.decode(encoded))
+    } catch (e: Exception) {
+        throw MdlReadException("invalidArgument", "Could not parse the device engagement: ${e.message}", e)
+    }
+
+    private suspend fun exchange(
+        transport: MdocTransport,
         encodedDeviceEngagement: ByteArray,
         deviceEngagement: DeviceEngagement,
         handover: DataItem,
         request: MdlReadRequest,
+        engagement: String,
     ): Map<String, Any?> {
-        val connectionMethod = MdocConnectionMethod
-            .disambiguate(deviceEngagement.connectionMethods, MdocRole.MDOC_READER)
-            .filterIsInstance<MdocConnectionMethodBle>()
-            // Prefer mdoc peripheral server mode (wallet advertises, we connect), the most widely supported.
-            .sortedByDescending { it.supportsPeripheralServerMode }
-            .firstOrNull()
-            ?: throw MdlReadException("notSupported", "The wallet did not offer a Bluetooth LE connection")
-
         val eReaderKey = Crypto.createEcPrivateKey(deviceEngagement.eDeviceKey.curve)
         val encodedEReaderKey = Cbor.encode(eReaderKey.publicKey.toCoseKey().toDataItem())
         val sessionTranscript = buildCborArray {
@@ -120,11 +189,7 @@ internal class MdlProximityReader(private val trustStore: MdlTrustStore) {
             deviceEngagement.eDeviceKey,
             encodedSessionTranscript,
         )
-        val transport = MdocTransportFactory.Default.createTransport(
-            connectionMethod,
-            MdocRole.MDOC_READER,
-            MdocTransportOptions(),
-        )
+        val transportName = transportName(transport.connectionMethod)
         val encodedDeviceResponse: ByteArray
         try {
             try {
@@ -135,14 +200,14 @@ internal class MdlProximityReader(private val trustStore: MdlTrustStore) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                throw MdlReadException("transportFailed", "Could not connect to the wallet over Bluetooth: ${e.message}", e)
+                throw MdlReadException("transportFailed", "Could not connect to the wallet over $transportName: ${e.message}", e)
             }
             val sessionData = try {
                 transport.waitForMessage()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                throw MdlReadException("transportFailed", "Bluetooth connection lost: ${e.message}", e)
+                throw MdlReadException("transportFailed", "$transportName connection lost: ${e.message}", e)
             }
             if (sessionData.isEmpty()) {
                 throw MdlReadException("cancelled", "The wallet ended the session without sharing")
@@ -161,7 +226,8 @@ internal class MdlProximityReader(private val trustStore: MdlTrustStore) {
             runCatching { transport.close() }
         }
 
-        return evaluate(encodedDeviceResponse, sessionTranscript, AsymmetricKey.anonymous(eReaderKey), request)
+        return evaluate(encodedDeviceResponse, sessionTranscript, AsymmetricKey.anonymous(eReaderKey), request) +
+            mapOf("engagement" to engagement, "transport" to transportName)
     }
 
     private suspend fun evaluate(
@@ -254,7 +320,31 @@ internal class MdlProximityReader(private val trustStore: MdlTrustStore) {
 
     companion object {
         const val MDOC_URI_PREFIX = "mdoc:"
+        const val ENGAGEMENT_QR = "qr"
+        const val ENGAGEMENT_NFC_STATIC = "nfcStaticHandover"
+        const val ENGAGEMENT_NFC_NEGOTIATED = "nfcNegotiatedHandover"
+        const val ENGAGEMENT_NFC_V2 = "nfcV2Handover"
     }
+}
+
+/**
+ * Picks the data transfer method from what the wallet offered: BLE first (mdoc peripheral server mode,
+ * then mdoc central client mode), then NFC data transfer if [allowNfc]. Returns null if nothing usable.
+ */
+internal fun selectConnectionMethod(
+    offered: List<MdocConnectionMethod>,
+    allowNfc: Boolean,
+): MdocConnectionMethod? {
+    val ble = offered.filterIsInstance<MdocConnectionMethodBle>()
+    return ble.firstOrNull { it.supportsPeripheralServerMode }
+        ?: ble.firstOrNull { it.supportsCentralClientMode }
+        ?: if (allowNfc) offered.firstOrNull { it is MdocConnectionMethodNfc } else null
+}
+
+internal fun transportName(method: MdocConnectionMethod): String = when (method) {
+    is MdocConnectionMethodBle -> "Bluetooth"
+    is MdocConnectionMethodNfc -> "NFC"
+    else -> method::class.simpleName ?: "transport"
 }
 
 /** Converts a CBOR value into something Flutter's StandardMessageCodec can carry. */

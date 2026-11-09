@@ -156,8 +156,12 @@ enum WalletVerifierErrorCode {
   /// Android reader: the wallet didn't respond in time.
   timedOut,
 
-  /// Android reader: the Bluetooth connection to the wallet failed or dropped.
+  /// Android reader: the Bluetooth or NFC connection to the wallet failed or
+  /// dropped, or the NFC handover with the tapped phone failed.
   transportFailed,
+
+  /// Android reader: NFC is turned off. See `WalletVerifierApi.openNfcSettings`.
+  nfcDisabled,
 
   /// Any other error.
   unknown;

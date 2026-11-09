@@ -3,7 +3,8 @@
 
     <!--
       ISO 18013-5 proximity reading (Android only). Bluetooth LE carries the encrypted
-      DeviceRequest/DeviceResponse after QR engagement. Location is never derived from scans.
+      DeviceRequest/DeviceResponse after QR or NFC engagement. Location is never derived from scans.
+      NFC is used in reader mode for ISO 18013-5 NFC engagement (tap a phone).
     -->
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
@@ -13,6 +14,6 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
-    <!-- Stage 2 (NFC engagement) will need android.permission.NFC. -->
+    <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
 </manifest>

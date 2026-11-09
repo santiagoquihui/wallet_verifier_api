@@ -65,11 +65,26 @@ class MethodChannelWalletVerifierApi extends WalletVerifierApiPlatform {
       await _invoke<bool>('requestAndroidReaderPermissions') ?? false;
 
   @override
-  Future<MdlReadResult> readMdlFromQr(MdlQrReadRequest request) async {
-    final map = await _invoke<Map<Object?, Object?>>(
-      'readMdlFromQr',
-      request.toMap(),
-    );
+  Future<MdlReadResult> readMdlFromQr(MdlQrReadRequest request) =>
+      _readMdl('readMdlFromQr', request.toMap());
+
+  @override
+  Future<MdlReadResult> readMdlFromNfc(MdlNfcReadRequest request) =>
+      _readMdl('readMdlFromNfc', request.toMap());
+
+  @override
+  Future<MdlNfcStatus> getNfcStatus() async =>
+      MdlNfcStatus.fromName(await _invoke<String>('getNfcStatus'));
+
+  @override
+  Future<bool> openNfcSettings() async =>
+      await _invoke<bool>('openNfcSettings') ?? false;
+
+  Future<MdlReadResult> _readMdl(
+    String method,
+    Map<String, Object?> arguments,
+  ) async {
+    final map = await _invoke<Map<Object?, Object?>>(method, arguments);
     if (map == null) {
       throw const WalletVerifierException(
         WalletVerifierErrorCode.invalidResponse,

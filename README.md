@@ -144,9 +144,17 @@ Apple's Verifier API only exists on iOS. On Android the plugin reads ISO/IEC
 Unlike the iOS display API, **your app receives the data** (name, birth date,
 age over 21, portrait, ...) plus the verification result, and you build the UI.
 
-Stage 1 supports **QR engagement**: the holder shows an `mdoc:` QR code in their
-wallet app, you scan it (with any scanner, e.g. `mobile_scanner`), and the data
-is transferred over Bluetooth LE. NFC tap-to-read is not implemented yet.
+Two ways to start a read:
+
+- **QR**: the holder shows an `mdoc:` QR code in their wallet app, you scan it
+  (with any scanner, e.g. `mobile_scanner`) and call `verifyMdlFromQr`.
+- **NFC tap**: call `verifyMdlFromNfc` and ask the holder to hold their phone
+  against the back of yours. The plugin turns on NFC reader mode for your
+  activity while it waits and supports ISO 18013-5 NFC **static handover** and
+  **negotiated handover** (used by Apple Wallet and Google Wallet).
+
+Either way the data then moves over Bluetooth LE (or NFC, if that's all a
+static-handover wallet offers).
 
 ```dart
 final verifier = WalletVerifierApi();
@@ -161,7 +169,22 @@ if (await verifier.isAndroidReaderSupported() &&
     }
   }
 }
+
+// NFC: show a "hold the phone to the back of this device" screen, then:
+switch (await verifier.getNfcStatus()) {
+  case MdlNfcStatus.enabled:
+    final result = await verifier.verifyMdlFromNfc(); // waits up to 60 s
+    // result.engagement: MdlEngagement.nfcNegotiatedHandover, ...
+  case MdlNfcStatus.disabled:
+    await verifier.openNfcSettings();
+  case MdlNfcStatus.unsupported:
+    // Fall back to QR.
+}
 ```
+
+`cancelMdlRead()` stops either kind of read (and turns NFC reader mode off).
+Keep your waiting screen in the foreground: Android turns reader mode off when
+the activity pauses.
 
 `MdlReadResult.isVerified` is `dataIntegrityVerified && issuerTrusted`:
 
@@ -178,8 +201,8 @@ Every element is requested with intent to retain = false. The plugin doesn't log
 or store the data; keep it that way in your app.
 
 Requirements: Android 12+ with Bluetooth LE at runtime, `minSdk` 26. The plugin
-declares `BLUETOOTH_SCAN` (with `neverForLocation`), `BLUETOOTH_CONNECT` and
-`BLUETOOTH_ADVERTISE`. Your scanner needs `CAMERA`. If you minify, the plugin
+declares `BLUETOOTH_SCAN` (with `neverForLocation`), `BLUETOOTH_CONNECT`,
+`BLUETOOTH_ADVERTISE` and `NFC` (NFC hardware is optional). Your scanner needs `CAMERA`. If you minify, the plugin
 ships consumer R8 rules that keep Multipaz.
 
 ## Migrating from 0.0.x

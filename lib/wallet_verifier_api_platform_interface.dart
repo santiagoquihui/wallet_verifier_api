@@ -76,6 +76,18 @@ abstract class WalletVerifierApiPlatform extends PlatformInterface {
     throw UnimplementedError('readMdlFromQr() has not been implemented.');
   }
 
+  Future<MdlReadResult> readMdlFromNfc(MdlNfcReadRequest request) {
+    throw UnimplementedError('readMdlFromNfc() has not been implemented.');
+  }
+
+  Future<MdlNfcStatus> getNfcStatus() {
+    throw UnimplementedError('getNfcStatus() has not been implemented.');
+  }
+
+  Future<bool> openNfcSettings() {
+    throw UnimplementedError('openNfcSettings() has not been implemented.');
+  }
+
   Future<void> cancelMdlRead() {
     throw UnimplementedError('cancelMdlRead() has not been implemented.');
   }

@@ -75,4 +75,45 @@ void main() {
       ),
     );
   }, skip: !isAndroid);
+
+  testWidgets('NFC read with no tap fails cleanly', (tester) async {
+    if (!await plugin.hasAndroidReaderPermissions()) {
+      markTestSkipped('Bluetooth permissions not granted');
+      return;
+    }
+    final status = await plugin.getNfcStatus();
+    try {
+      await plugin.verifyMdlFromNfc(timeout: const Duration(seconds: 4));
+      fail('A read without a tap should not succeed');
+    } on WalletVerifierException catch (e) {
+      // Reader mode turns on, nothing is tapped, the read times out and
+      // reader mode turns off again.
+      expect(e.code, switch (status) {
+        MdlNfcStatus.enabled => WalletVerifierErrorCode.timedOut,
+        MdlNfcStatus.disabled => WalletVerifierErrorCode.nfcDisabled,
+        MdlNfcStatus.unsupported => WalletVerifierErrorCode.notSupported,
+      }, reason: e.message);
+    }
+  }, skip: !isAndroid);
+
+  testWidgets('cancel ends a pending NFC read', (tester) async {
+    if (!await plugin.hasAndroidReaderPermissions() ||
+        !await plugin.isNfcAvailable()) {
+      markTestSkipped('Needs Bluetooth permissions and NFC turned on');
+      return;
+    }
+    final read = plugin.verifyMdlFromNfc();
+    await Future<void>.delayed(const Duration(seconds: 1));
+    await plugin.cancelMdlRead();
+    await expectLater(
+      read,
+      throwsA(
+        isA<WalletVerifierException>().having(
+          (e) => e.code,
+          'code',
+          WalletVerifierErrorCode.cancelled,
+        ),
+      ),
+    );
+  }, skip: !isAndroid);
 }

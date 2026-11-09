@@ -170,4 +170,55 @@ void main() {
       ),
     );
   });
+
+  test('readMdlFromNfc sends the request and parses the result', () async {
+    handler = (_) => <Object?, Object?>{
+      'elements': <Object?, Object?>{'age_over_21': true},
+      'dataIntegrityVerified': true,
+      'issuerTrusted': true,
+      'engagement': 'nfcStaticHandover',
+      'transport': 'NFC',
+    };
+    final result = await platform.readMdlFromNfc(
+      const MdlNfcReadRequest(elements: [MdlElement.ageOver21]),
+    );
+    expect(calls.single.method, 'readMdlFromNfc');
+    final args = calls.single.arguments as Map;
+    expect(args['elements'], ['age_over_21']);
+    expect(args.containsKey('qrContent'), isFalse);
+    expect(result.engagement, MdlEngagement.nfcStaticHandover);
+    expect(result.transport, 'NFC');
+    expect(result.isVerified, isTrue);
+  });
+
+  test('readMdlFromNfc maps nfcDisabled', () async {
+    handler = (_) => throw PlatformException(code: 'nfcDisabled');
+    await expectLater(
+      platform.readMdlFromNfc(
+        const MdlNfcReadRequest(elements: [MdlElement.ageOver21]),
+      ),
+      throwsA(
+        isA<WalletVerifierException>().having(
+          (e) => e.code,
+          'code',
+          WalletVerifierErrorCode.nfcDisabled,
+        ),
+      ),
+    );
+  });
+
+  test('getNfcStatus parses the status and defaults to unsupported', () async {
+    handler = (_) => 'disabled';
+    expect(await platform.getNfcStatus(), MdlNfcStatus.disabled);
+    handler = (_) => 'enabled';
+    expect(await platform.getNfcStatus(), MdlNfcStatus.enabled);
+    handler = (_) => null;
+    expect(await platform.getNfcStatus(), MdlNfcStatus.unsupported);
+  });
+
+  test('openNfcSettings returns the platform value', () async {
+    handler = (_) => true;
+    expect(await platform.openNfcSettings(), isTrue);
+    expect(calls.last.method, 'openNfcSettings');
+  });
 }

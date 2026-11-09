@@ -11,7 +11,7 @@ export 'src/models.dart';
 
 /// Checks IDs in Apple Wallet with Apple's Verifier API (display requests),
 /// and, on Android, reads ISO 18013-5 mobile driver's licenses directly (see
-/// [verifyMdlFromQr]).
+/// [verifyMdlFromQr] and [verifyMdlFromNfc]).
 ///
 /// Requires iOS 17 or later and the
 /// `com.apple.developer.proximity-reader.identity.display` entitlement.
@@ -215,7 +215,72 @@ class WalletVerifierApi {
     );
   }
 
-  /// Cancels the read started by [verifyMdlFromQr], if any.
+  /// This device's NFC state. [MdlNfcStatus.unsupported] off Android.
+  Future<MdlNfcStatus> getNfcStatus() async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return MdlNfcStatus.unsupported;
+    }
+    return _platform.getNfcStatus();
+  }
+
+  /// Whether NFC is present and turned on, so [verifyMdlFromNfc] can run.
+  Future<bool> isNfcAvailable() async =>
+      await getNfcStatus() == MdlNfcStatus.enabled;
+
+  /// Opens the system NFC settings so the person can turn NFC on. Returns
+  /// whether a settings screen was opened. Android only.
+  Future<bool> openNfcSettings() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    return _platform.openNfcSettings();
+  }
+
+  /// Waits for the holder to tap their phone against this one, then reads
+  /// and verifies their mobile driver's license. Android only.
+  ///
+  /// While waiting, Android NFC reader mode is on for the current activity:
+  /// keep your waiting screen in the foreground and tell the person to hold
+  /// their phone against the back of this device. Works with ISO 18013-5 NFC
+  /// static and negotiated handover (Apple Wallet, Google Wallet, Samsung
+  /// Wallet); the data then moves over Bluetooth LE, or over NFC if that's all
+  /// the wallet offers (the phones must then stay together).
+  ///
+  /// [timeout] covers the wait for a tap and the transfer. The result and the
+  /// verification rules are the same as [verifyMdlFromQr], with
+  /// [MdlReadResult.engagement] telling which handover was used.
+  ///
+  /// Throws a [WalletVerifierException]: [WalletVerifierErrorCode.notSupported]
+  /// off Android or without NFC, [WalletVerifierErrorCode.nfcDisabled] when NFC
+  /// is off (see [openNfcSettings]), [WalletVerifierErrorCode.notAllowed]
+  /// without Bluetooth permissions, [WalletVerifierErrorCode.timedOut],
+  /// [WalletVerifierErrorCode.transportFailed] or
+  /// [WalletVerifierErrorCode.cancelled] (holder declined or [cancelMdlRead]).
+  Future<MdlReadResult> verifyMdlFromNfc({
+    List<MdlElement> elements = MdlElement.doorCheck,
+    Duration timeout = const Duration(seconds: 60),
+    List<String> additionalTrustedRootsPem = const [],
+    Uint8List? vical,
+  }) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      throw const WalletVerifierException(
+        WalletVerifierErrorCode.notSupported,
+        'The mDL reader is only available on Android',
+      );
+    }
+    if (elements.isEmpty) {
+      throw ArgumentError.value(elements, 'elements', 'must not be empty');
+    }
+    return _platform.readMdlFromNfc(
+      MdlNfcReadRequest(
+        elements: elements,
+        timeout: timeout,
+        additionalTrustedRootsPem: additionalTrustedRootsPem,
+        vical: vical,
+      ),
+    );
+  }
+
+  /// Cancels the read started by [verifyMdlFromQr] or [verifyMdlFromNfc], if
+  /// any, and turns NFC reader mode off.
   Future<void> cancelMdlRead() async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
     return _platform.cancelMdlRead();

@@ -52,13 +52,17 @@
   `cancelMdlRead`, `MdlElement`, `MdlReadResult` and `MdocQrEngagement`.
   QR engagement + BLE transfer; verifies the issuer signature, element digests,
   validity and device authentication, then checks the issuer against bundled
-  Arizona IACA roots and an optional signed AAMVA VICAL. NFC engagement is not
-  implemented yet.
-- Add `WalletVerifierErrorCode.timedOut` and `transportFailed`.
+  Arizona IACA roots and an optional signed AAMVA VICAL.
+- **Android NFC engagement**: `verifyMdlFromNfc` reads an mDL by NFC tap using
+  ISO 18013-5 static or negotiated handover (Apple Wallet, Google Wallet), with
+  BLE (or NFC) data transfer. Adds `getNfcStatus`, `isNfcAvailable`,
+  `openNfcSettings`, `MdlNfcStatus`, `MdlEngagement`, and
+  `MdlReadResult.engagement` / `transport`.
+- Add `WalletVerifierErrorCode.timedOut`, `transportFailed` and `nfcDisabled`.
 - On Android, the iOS-only calls now answer instead of throwing
   `MissingPluginException`: `isSupported()` and
   `isNationalIDCardRegionSupported()` return `false`, display requests throw
   `notSupported`.
 - The Android plugin declares `BLUETOOTH_SCAN` (neverForLocation),
-  `BLUETOOTH_CONNECT` and `BLUETOOTH_ADVERTISE`, and needs `minSdk` 26
+  `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` and `NFC`, and needs `minSdk` 26
   (the reader itself runs on Android 12+).

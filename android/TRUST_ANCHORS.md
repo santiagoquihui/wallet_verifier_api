@@ -28,6 +28,13 @@ Subject: `L=Phoenix, ST=US-AZ, C=US, OU=IT, O=Arizona Department of Transportati
 | `az_avocet_iaca.pem` | AvocetIACA | `1f3a4a6fe42ca4b2f64b4957971607b3ecd62406e0631721168f02aafd9f6b8a` | Unconfirmed (probably Apple Wallet) |
 
 The mapping of AvocetIACA to Apple Wallet is a guess; nothing official says so.
+
+No Apple-specific root is needed to trust an ID read from Apple Wallet: the
+document signer chains to the issuing state's IACA (one of the roots above for
+Arizona), not to Apple. Apple's root CA only matters for *reader*
+authentication (the reader proving its identity to the wallet), which this
+plugin doesn't do yet. If an Apple Wallet read comes back with
+`issuerTrusted == false`, `documentSignerIssuer` names the IACA that signed it.
 Older Arizona roots (three `CN=MVMProdCA` certificates valid 2024-08-16 to 2034-08-16)
 appeared in earlier VICALs (e.g. 2025-11-08) but are no longer in the current one,
 so they are not bundled.

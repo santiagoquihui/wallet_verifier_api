@@ -103,4 +103,15 @@ void main() {
     expect(map['timeoutMillis'], 10000);
     expect(map['additionalTrustedRootsPem'], ['PEM']);
   });
+
+  test('MdlReadResult engagement defaults to unknown', () {
+    final result = MdlReadResult.fromMap(const {});
+    expect(result.engagement, MdlEngagement.unknown);
+    expect(result.engagement.isNfc, isFalse);
+    expect(result.transport, isNull);
+    expect(
+      MdlReadResult.fromMap(const {'engagement': 'qr'}).engagement,
+      MdlEngagement.qr,
+    );
+  });
 }
