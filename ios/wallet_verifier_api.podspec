@@ -5,7 +5,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'wallet_verifier_api'
-  s.version          = '0.1.0'
+  s.version          = '0.1.0-beta.1'
   s.summary          = 'Verifier API Plugin for iOS Digital ID Verification'
   s.description      = <<-DESC
 Flutter wrapper around Apple's Verifier API (ProximityReader) for checking IDs in Apple Wallet.

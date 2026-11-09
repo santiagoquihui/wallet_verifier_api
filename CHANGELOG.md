@@ -26,7 +26,7 @@
 ## 0.0.8
 - Support iOS 13.0+
 
-## 0.1.0
+## 0.1.0-beta.1
 - **Swift Package Manager**: the iOS plugin is now a Swift package. The podspec
   remains as a fallback for apps that still use CocoaPods, and the example app
   no longer uses CocoaPods.

@@ -39,7 +39,7 @@ that use CocoaPods.
 
 ```yaml
 dependencies:
-  wallet_verifier_api: ^0.1.0
+  wallet_verifier_api: ^0.1.0-beta.1
 ```
 
 ```dart
