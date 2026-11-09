@@ -11,6 +11,7 @@ void main() {
         .setMockMethodCallHandler(channel, (call) async {
           return switch (call.method) {
             'isSupported' => true,
+            'isAndroidReaderSupported' => true,
             'requestDisplay' => 'approved',
             _ => null,
           };
@@ -32,5 +33,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Driver’s license, age 21+: approved'), findsOneWidget);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+  testWidgets('Android shows the mDL reader', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('mDL reader (Android)'), findsOneWidget);
+    expect(find.text('Reader supported: true'), findsOneWidget);
+    expect(find.text('Scan wallet QR code'), findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }

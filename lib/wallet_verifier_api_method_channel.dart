@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'src/mdl_models.dart';
 import 'src/models.dart';
 import 'wallet_verifier_api_platform_interface.dart';
 
@@ -50,6 +51,36 @@ class MethodChannelWalletVerifierApi extends WalletVerifierApiPlatform {
       ),
     );
   }
+
+  @override
+  Future<bool> isAndroidReaderSupported() async =>
+      await _invoke<bool>('isAndroidReaderSupported') ?? false;
+
+  @override
+  Future<bool> hasAndroidReaderPermissions() async =>
+      await _invoke<bool>('hasAndroidReaderPermissions') ?? false;
+
+  @override
+  Future<bool> requestAndroidReaderPermissions() async =>
+      await _invoke<bool>('requestAndroidReaderPermissions') ?? false;
+
+  @override
+  Future<MdlReadResult> readMdlFromQr(MdlQrReadRequest request) async {
+    final map = await _invoke<Map<Object?, Object?>>(
+      'readMdlFromQr',
+      request.toMap(),
+    );
+    if (map == null) {
+      throw const WalletVerifierException(
+        WalletVerifierErrorCode.invalidResponse,
+        'Missing mDL read result',
+      );
+    }
+    return MdlReadResult.fromMap(map);
+  }
+
+  @override
+  Future<void> cancelMdlRead() => _invoke<void>('cancelMdlRead');
 
   Future<T?> _invoke<T>(String method, [Object? arguments]) async {
     try {

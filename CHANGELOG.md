@@ -43,3 +43,22 @@
 - Add a privacy manifest.
 - Deprecate `verifyAge` and `MobileDriversLicenseElement` in favor of
   `displayDriversLicense` and `DisplayElement`.
+
+## Unreleased (feature/android-mdl-verifier)
+
+- **Android preview**: ISO/IEC 18013-5 mDL reader built on OpenWallet Foundation
+  Multipaz 0.102.0. Adds `verifyMdlFromQr`, `isAndroidReaderSupported`,
+  `hasAndroidReaderPermissions`, `requestAndroidReaderPermissions`,
+  `cancelMdlRead`, `MdlElement`, `MdlReadResult` and `MdocQrEngagement`.
+  QR engagement + BLE transfer; verifies the issuer signature, element digests,
+  validity and device authentication, then checks the issuer against bundled
+  Arizona IACA roots and an optional signed AAMVA VICAL. NFC engagement is not
+  implemented yet.
+- Add `WalletVerifierErrorCode.timedOut` and `transportFailed`.
+- On Android, the iOS-only calls now answer instead of throwing
+  `MissingPluginException`: `isSupported()` and
+  `isNationalIDCardRegionSupported()` return `false`, display requests throw
+  `notSupported`.
+- The Android plugin declares `BLUETOOTH_SCAN` (neverForLocation),
+  `BLUETOOTH_CONNECT` and `BLUETOOTH_ADVERTISE`, and needs `minSdk` 26
+  (the reader itself runs on Android 12+).

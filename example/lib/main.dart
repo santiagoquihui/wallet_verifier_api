@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:wallet_verifier_api/wallet_verifier_api.dart';
+
+import 'mdl_reader_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -46,6 +49,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Apple's Verifier API is iOS-only; Android reads mDLs itself.
+      return const MaterialApp(home: MdlReaderPage());
+    }
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(title: const Text('Verifier API Example')),

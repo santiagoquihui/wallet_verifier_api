@@ -153,6 +153,12 @@ enum WalletVerifierErrorCode {
   /// The plugin received arguments it couldn't understand.
   invalidArgument,
 
+  /// Android reader: the wallet didn't respond in time.
+  timedOut,
+
+  /// Android reader: the Bluetooth connection to the wallet failed or dropped.
+  transportFailed,
+
   /// Any other error.
   unknown;
 
@@ -161,7 +167,7 @@ enum WalletVerifierErrorCode {
       values.firstWhere((value) => value.name == code, orElse: () => unknown);
 }
 
-/// Thrown when a Verifier API request fails.
+/// Thrown when a Verifier API request or an Android mDL read fails.
 class WalletVerifierException implements Exception {
   const WalletVerifierException(this.code, [this.message]);
 

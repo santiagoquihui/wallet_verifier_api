@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:wallet_verifier_api/wallet_verifier_api.dart';
@@ -32,6 +33,32 @@ class FakeWalletVerifierApiPlatform
     requests.add(request);
     return outcome;
   }
+
+  final mdlRequests = <MdlQrReadRequest>[];
+
+  @override
+  Future<bool> isAndroidReaderSupported() async => true;
+
+  @override
+  Future<bool> hasAndroidReaderPermissions() async => true;
+
+  @override
+  Future<bool> requestAndroidReaderPermissions() async => true;
+
+  @override
+  Future<MdlReadResult> readMdlFromQr(MdlQrReadRequest request) async {
+    mdlRequests.add(request);
+    return MdlReadResult.fromMap(const {
+      'dataIntegrityVerified': true,
+      'issuerTrusted': true,
+      'elements': {'age_over_21': true},
+    });
+  }
+
+  bool cancelled = false;
+
+  @override
+  Future<void> cancelMdlRead() async => cancelled = true;
 }
 
 void main() {
@@ -132,6 +159,72 @@ void main() {
         () => api.verifyAge([MobileDriversLicenseElement.ageAtLeast]),
         throwsArgumentError,
       );
+    });
+  });
+
+  group('Android mDL reader', () {
+    // "mdoc:" + base64url of {0: "1.0"} (a CBOR map, like a DeviceEngagement).
+    const qr = 'mdoc:oQBjMS4w';
+
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    test('is unavailable off Android without calling the platform', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      expect(await api.isAndroidReaderSupported(), isFalse);
+      await expectLater(
+        api.verifyMdlFromQr(qr),
+        throwsA(
+          isA<WalletVerifierException>().having(
+            (e) => e.code,
+            'code',
+            WalletVerifierErrorCode.notSupported,
+          ),
+        ),
+      );
+      expect(fake.mdlRequests, isEmpty);
+    });
+
+    test('rejects QR codes that are not mdoc engagements', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      await expectLater(
+        api.verifyMdlFromQr('https://example.com'),
+        throwsA(
+          isA<WalletVerifierException>().having(
+            (e) => e.code,
+            'code',
+            WalletVerifierErrorCode.invalidArgument,
+          ),
+        ),
+      );
+      expect(fake.mdlRequests, isEmpty);
+    });
+
+    test('sends the door-check elements by default', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final result = await api.verifyMdlFromQr(qr);
+      expect(result.isVerified, isTrue);
+      expect(result.ageOver21, isTrue);
+      final map = fake.mdlRequests.single.toMap();
+      expect(map['qrContent'], qr);
+      expect(map['elements'], [
+        'given_name',
+        'family_name',
+        'birth_date',
+        'age_over_21',
+        'portrait',
+        'issuing_authority',
+        'expiry_date',
+      ]);
+      expect(map['docType'], 'org.iso.18013.5.1.mDL');
+      expect(map['namespace'], 'org.iso.18013.5.1');
+      expect(map['timeoutMillis'], 45000);
+      expect(map.containsKey('vical'), isFalse);
+    });
+
+    test('cancelMdlRead forwards on Android', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      await api.cancelMdlRead();
+      expect(fake.cancelled, isTrue);
     });
   });
 }

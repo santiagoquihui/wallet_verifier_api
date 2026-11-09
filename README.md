@@ -136,6 +136,52 @@ Failed requests throw a `WalletVerifierException`. Its `code` is a
 plugin-specific ones (`unsupportedOSVersion`, `unsupportedRegion`,
 `unsupportedElement`, `invalidArgument`).
 
+## Android: read and verify mobile driver's licenses (preview)
+
+Apple's Verifier API only exists on iOS. On Android the plugin reads ISO/IEC
+18013-5 mobile driver's licenses itself, using
+[Multipaz](https://github.com/openwallet-foundation/multipaz) (Apache-2.0).
+Unlike the iOS display API, **your app receives the data** (name, birth date,
+age over 21, portrait, ...) plus the verification result, and you build the UI.
+
+Stage 1 supports **QR engagement**: the holder shows an `mdoc:` QR code in their
+wallet app, you scan it (with any scanner, e.g. `mobile_scanner`), and the data
+is transferred over Bluetooth LE. NFC tap-to-read is not implemented yet.
+
+```dart
+final verifier = WalletVerifierApi();
+
+if (await verifier.isAndroidReaderSupported() &&
+    await verifier.requestAndroidReaderPermissions()) {
+  // qr is the scanned string, e.g. from mobile_scanner.
+  if (MdocQrEngagement.isEngagement(qr)) {
+    final result = await verifier.verifyMdlFromQr(qr); // MdlElement.doorCheck
+    if (result.isVerified && result.ageOver21 == true) {
+      // Compare result.portrait with the person in front of you.
+    }
+  }
+}
+```
+
+`MdlReadResult.isVerified` is `dataIntegrityVerified && issuerTrusted`:
+
+- `dataIntegrityVerified`: the issuer's signature on the Mobile Security
+  Object, the digest of every returned element, the validity window and the
+  holder device's authentication for this session all check out.
+- `issuerTrusted`: the document signer chains to a trusted issuer root. The
+  plugin bundles Arizona's four IACA roots (see
+  [android/TRUST_ANCHORS.md](android/TRUST_ANCHORS.md)). Add more with
+  `additionalTrustedRootsPem`, or pass a signed AAMVA VICAL as `vical:` (its
+  signature and AAMVA chain are checked first) to trust every participating state.
+
+Every element is requested with intent to retain = false. The plugin doesn't log
+or store the data; keep it that way in your app.
+
+Requirements: Android 12+ with Bluetooth LE at runtime, `minSdk` 26. The plugin
+declares `BLUETOOTH_SCAN` (with `neverForLocation`), `BLUETOOTH_CONNECT` and
+`BLUETOOTH_ADVERTISE`. Your scanner needs `CAMERA`. If you minify, the plugin
+ships consumer R8 rules that keep Multipaz.
+
 ## Migrating from 0.0.x
 
 `verifyAge` and `MobileDriversLicenseElement` still work but are deprecated:

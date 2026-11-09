@@ -1,10 +1,13 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'src/display_request.dart';
+import 'src/mdl_models.dart';
 import 'src/models.dart';
+import 'src/mdl_read_request.dart';
 import 'wallet_verifier_api_method_channel.dart';
 
 export 'src/display_request.dart';
+export 'src/mdl_read_request.dart';
 
 abstract class WalletVerifierApiPlatform extends PlatformInterface {
   /// Constructs a WalletVerifierApiPlatform.
@@ -49,5 +52,31 @@ abstract class WalletVerifierApiPlatform extends PlatformInterface {
 
   Future<ValidationOutcome> requestDisplay(DisplayRequest request) {
     throw UnimplementedError('requestDisplay() has not been implemented.');
+  }
+
+  Future<bool> isAndroidReaderSupported() {
+    throw UnimplementedError(
+      'isAndroidReaderSupported() has not been implemented.',
+    );
+  }
+
+  Future<bool> hasAndroidReaderPermissions() {
+    throw UnimplementedError(
+      'hasAndroidReaderPermissions() has not been implemented.',
+    );
+  }
+
+  Future<bool> requestAndroidReaderPermissions() {
+    throw UnimplementedError(
+      'requestAndroidReaderPermissions() has not been implemented.',
+    );
+  }
+
+  Future<MdlReadResult> readMdlFromQr(MdlQrReadRequest request) {
+    throw UnimplementedError('readMdlFromQr() has not been implemented.');
+  }
+
+  Future<void> cancelMdlRead() {
+    throw UnimplementedError('cancelMdlRead() has not been implemented.');
   }
 }

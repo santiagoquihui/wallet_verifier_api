@@ -1,11 +1,17 @@
+import 'package:flutter/foundation.dart';
+
 import 'mobile_drivers_license_element.dart';
+import 'src/mdl_models.dart';
 import 'src/models.dart';
 import 'wallet_verifier_api_platform_interface.dart';
 
 export 'mobile_drivers_license_element.dart';
+export 'src/mdl_models.dart';
 export 'src/models.dart';
 
-/// Checks IDs in Apple Wallet with Apple's Verifier API (display requests).
+/// Checks IDs in Apple Wallet with Apple's Verifier API (display requests),
+/// and, on Android, reads ISO 18013-5 mobile driver's licenses directly (see
+/// [verifyMdlFromQr]).
 ///
 /// Requires iOS 17 or later and the
 /// `com.apple.developer.proximity-reader.identity.display` entitlement.
@@ -131,5 +137,87 @@ class WalletVerifierApi {
           ),
         },
     ]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Android: ISO/IEC 18013-5 proximity reader (preview)
+  // ---------------------------------------------------------------------------
+
+  /// Whether this device can read mobile driver's licenses itself.
+  ///
+  /// `true` on Android 12+ with Bluetooth LE. Always `false` on iOS, where
+  /// third-party apps must use [displayDriversLicense] instead.
+  Future<bool> isAndroidReaderSupported() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    return _platform.isAndroidReaderSupported();
+  }
+
+  /// Whether the Bluetooth permissions the Android reader needs are granted.
+  Future<bool> hasAndroidReaderPermissions() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    return _platform.hasAndroidReaderPermissions();
+  }
+
+  /// Asks for the Bluetooth permissions (scan, connect, advertise) the
+  /// Android reader needs. Returns whether all were granted.
+  Future<bool> requestAndroidReaderPermissions() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    return _platform.requestAndroidReaderPermissions();
+  }
+
+  /// Reads a mobile driver's license from the holder's engagement QR code
+  /// (an `mdoc:` URI) over Bluetooth LE and verifies it. Android only.
+  ///
+  /// Every element is requested with intent-to-retain = false. The result's
+  /// [MdlReadResult.isVerified] is `true` only when the data is intact and
+  /// signed by a trusted issuer: the bundled Arizona IACA roots, any
+  /// [additionalTrustedRootsPem], or the issuers in a signed AAMVA [vical].
+  ///
+  /// The signature check proves where the data came from, not who is holding
+  /// the phone: still compare the portrait to the person.
+  ///
+  /// Throws a [WalletVerifierException]: [WalletVerifierErrorCode.notSupported]
+  /// off Android, [WalletVerifierErrorCode.notAllowed] without Bluetooth
+  /// permissions, [WalletVerifierErrorCode.invalidArgument] for a QR code that
+  /// isn't an mdoc engagement, [WalletVerifierErrorCode.timedOut],
+  /// [WalletVerifierErrorCode.transportFailed] or
+  /// [WalletVerifierErrorCode.cancelled] (holder declined or [cancelMdlRead]).
+  Future<MdlReadResult> verifyMdlFromQr(
+    String qrContent, {
+    List<MdlElement> elements = MdlElement.doorCheck,
+    Duration timeout = const Duration(seconds: 45),
+    List<String> additionalTrustedRootsPem = const [],
+    Uint8List? vical,
+  }) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      throw const WalletVerifierException(
+        WalletVerifierErrorCode.notSupported,
+        'The mDL reader is only available on Android',
+      );
+    }
+    if (elements.isEmpty) {
+      throw ArgumentError.value(elements, 'elements', 'must not be empty');
+    }
+    if (!MdocQrEngagement.isEngagement(qrContent)) {
+      throw const WalletVerifierException(
+        WalletVerifierErrorCode.invalidArgument,
+        'Not an ISO 18013-5 engagement QR code',
+      );
+    }
+    return _platform.readMdlFromQr(
+      MdlQrReadRequest(
+        qrContent: qrContent,
+        elements: elements,
+        timeout: timeout,
+        additionalTrustedRootsPem: additionalTrustedRootsPem,
+        vical: vical,
+      ),
+    );
+  }
+
+  /// Cancels the read started by [verifyMdlFromQr], if any.
+  Future<void> cancelMdlRead() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    return _platform.cancelMdlRead();
   }
 }

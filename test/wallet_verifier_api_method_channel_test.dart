@@ -133,4 +133,41 @@ void main() {
       ),
     );
   });
+
+  test('readMdlFromQr sends the request and parses the result', () async {
+    handler = (_) => <Object?, Object?>{
+      'elements': <Object?, Object?>{'given_name': 'ADA'},
+      'dataIntegrityVerified': true,
+      'issuerTrusted': false,
+    };
+    final result = await platform.readMdlFromQr(
+      const MdlQrReadRequest(
+        qrContent: 'mdoc:oQBjMS4w',
+        elements: [MdlElement.givenName],
+      ),
+    );
+    expect(calls.single.method, 'readMdlFromQr');
+    expect((calls.single.arguments as Map)['elements'], ['given_name']);
+    expect(result.givenName, 'ADA');
+    expect(result.isVerified, isFalse);
+  });
+
+  test('readMdlFromQr maps Android error codes', () async {
+    handler = (_) => throw PlatformException(code: 'timedOut', message: 'x');
+    await expectLater(
+      platform.readMdlFromQr(
+        const MdlQrReadRequest(
+          qrContent: 'mdoc:oQBjMS4w',
+          elements: [MdlElement.ageOver21],
+        ),
+      ),
+      throwsA(
+        isA<WalletVerifierException>().having(
+          (e) => e.code,
+          'code',
+          WalletVerifierErrorCode.timedOut,
+        ),
+      ),
+    );
+  });
 }
