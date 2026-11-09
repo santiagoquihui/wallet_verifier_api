@@ -1,6 +1,6 @@
 name: wallet_verifier_api
-description: "Check IDs in Apple Wallet from Flutter with Apple's Verifier API: driver's licenses, national ID cards and photo IDs."
-version: 0.1.0-beta.1
+description: "Check IDs in Apple Wallet with Apple's Verifier API on iOS, and read and verify ISO 18013-5 mobile driver's licenses by QR or NFC on Android."
+version: 0.1.0-beta.2
 repository: https://github.com/kiwis08/wallet_verifier_api
 
 issue_tracker: https://github.com/kiwis08/wallet_verifier_api/issues
@@ -9,6 +9,7 @@ topics:
   - identity
   - verification
   - ios
+  - android
 
 environment:
   sdk: ^3.10.0

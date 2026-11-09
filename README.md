@@ -9,6 +9,12 @@ information (name, age, "age 21+", and so on) to the person checking the ID in
 a secure sheet. Your app never receives the values. It only gets the
 verifier's decision: approved, rejected, or dismissed.
 
+On **Android** (preview), the plugin is an ISO/IEC 18013-5 reader instead: it
+reads a mobile driver's license from the holder's wallet by QR code or NFC tap
+(Apple Wallet, Google Wallet, Samsung Wallet, state wallet apps), verifies it
+and returns the data to your app. See
+[Android: read and verify mobile driver's licenses](#android-read-and-verify-mobile-drivers-licenses-preview).
+
 | Feature | iOS |
 | --- | --- |
 | Mobile driver's licenses (`displayDriversLicense`) | 17.0+ |

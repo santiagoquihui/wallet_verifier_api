@@ -1,0 +1,36 @@
+# Everything in .gitignore is listed again here: when .pubignore exists, pub
+# no longer reads .gitignore for this directory.
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+/pubspec.lock
+**/doc/api/
+.dart_tool/
+build/
+
+# Native build output and local tooling
+.gradle/
+.kotlin/
+.cxx/
+local.properties
+*.apk
+*.aab
+**/Pods/
+**/.build/
+**/.swiftpm/
+
+# Test-only data and tests aren't needed by package users
+android/src/test/
+example/integration_test/

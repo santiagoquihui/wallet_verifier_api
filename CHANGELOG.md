@@ -44,25 +44,39 @@
 - Deprecate `verifyAge` and `MobileDriversLicenseElement` in favor of
   `displayDriversLicense` and `DisplayElement`.
 
-## Unreleased (feature/android-mdl-verifier)
+## 0.1.0-beta.2
 
-- **Android preview**: ISO/IEC 18013-5 mDL reader built on OpenWallet Foundation
-  Multipaz 0.102.0. Adds `verifyMdlFromQr`, `isAndroidReaderSupported`,
-  `hasAndroidReaderPermissions`, `requestAndroidReaderPermissions`,
-  `cancelMdlRead`, `MdlElement`, `MdlReadResult` and `MdocQrEngagement`.
-  QR engagement + BLE transfer; verifies the issuer signature, element digests,
-  validity and device authentication, then checks the issuer against bundled
-  Arizona IACA roots and an optional signed AAMVA VICAL.
-- **Android NFC engagement**: `verifyMdlFromNfc` reads an mDL by NFC tap using
-  ISO 18013-5 static or negotiated handover (Apple Wallet, Google Wallet), with
-  BLE (or NFC) data transfer. Adds `getNfcStatus`, `isNfcAvailable`,
-  `openNfcSettings`, `MdlNfcStatus`, `MdlEngagement`, and
-  `MdlReadResult.engagement` / `transport`.
-- Add `WalletVerifierErrorCode.timedOut`, `transportFailed` and `nfcDisabled`.
+- **Android mDL reader (preview)**: Android devices can now read and verify
+  ISO/IEC 18013-5 mobile driver's licenses themselves, built on OpenWallet
+  Foundation Multipaz 0.102.0. Unlike the iOS display API, your app receives
+  the data (name, birth date, age over 21, portrait, ...) and the result.
+  - **QR engagement**: scan the holder's `mdoc:` QR code, then transfer over
+    Bluetooth LE.
+  - **NFC engagement**: tap phones; ISO 18013-5 static and negotiated handover
+    (Apple Wallet, Google Wallet), then transfer over Bluetooth LE (or NFC).
+  - **Verification**: issuer signature, element digests, validity window and
+    device authentication, then the issuer is checked against the bundled
+    Arizona IACA roots, extra roots you pass, or an optional signed AAMVA VICAL
+    (its signature is checked against the bundled AAMVA root first).
+  - Every element is requested with intent to retain = false.
+- New Dart API (Android only; off Android these return `false` /
+  `unsupported` or throw `notSupported`):
+  - `verifyMdlFromQr`, `verifyMdlFromNfc`, `cancelMdlRead`
+  - `isAndroidReaderSupported`, `hasAndroidReaderPermissions`,
+    `requestAndroidReaderPermissions`
+  - `getNfcStatus`, `isNfcAvailable`, `openNfcSettings`
+  - `MdlElement`, `MdlReadResult` (with `engagement` and `transport`),
+    `MdlEngagement`, `MdlNfcStatus`, `MdocQrEngagement`
+  - `WalletVerifierErrorCode.timedOut`, `transportFailed` and `nfcDisabled`
+- **Host apps on Android**: the plugin's manifest adds `BLUETOOTH_SCAN`
+  (`neverForLocation`), `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` and `NFC`
+  permissions, plus optional `bluetooth_le` and `nfc` features. It needs
+  `minSdk` 26 (the reader runs on Android 12+) and ships R8 rules that keep
+  Multipaz.
 - On Android, the iOS-only calls now answer instead of throwing
   `MissingPluginException`: `isSupported()` and
   `isNationalIDCardRegionSupported()` return `false`, display requests throw
-  `notSupported`.
-- The Android plugin declares `BLUETOOTH_SCAN` (neverForLocation),
-  `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` and `NFC`, and needs `minSdk` 26
-  (the reader itself runs on Android 12+).
+  `notSupported`. The iOS API is unchanged.
+- Tested on real devices (Galaxy Z Flip6 as the reader): Arizona Mobile ID via
+  QR and Apple Wallet via NFC tap (negotiated handover, BLE transfer) both
+  returned verified data from a trusted Arizona issuer.
