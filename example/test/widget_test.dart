@@ -1,27 +1,36 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:wallet_verifier_api_example/wallet_verifier_api_example.dart';
+import 'package:wallet_verifier_api_example/main.dart';
 
 void main() {
-  testWidgets('Verify Platform version', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  const channel = MethodChannel('wallet_verifier_api');
 
-    // Verify that platform version is retrieved.
-    expect(
-      find.byWidgetPredicate(
-        (Widget widget) => widget is Text &&
-                           widget.data!.startsWith('Running on:'),
-      ),
-      findsOneWidget,
-    );
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          return switch (call.method) {
+            'isSupported' => true,
+            'requestDisplay' => 'approved',
+            _ => null,
+          };
+        });
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
+  });
+
+  testWidgets('shows support status and request outcome', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Supported on this device: true'), findsOneWidget);
+
+    await tester.tap(find.text('Check driver’s license (iOS 17+)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Driver’s license, age 21+: approved'), findsOneWidget);
   });
 }

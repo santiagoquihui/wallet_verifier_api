@@ -1,7 +1,10 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-import 'mobile_drivers_license_element.dart';
+import 'src/display_request.dart';
+import 'src/models.dart';
 import 'wallet_verifier_api_method_channel.dart';
+
+export 'src/display_request.dart';
 
 abstract class WalletVerifierApiPlatform extends PlatformInterface {
   /// Constructs a WalletVerifierApiPlatform.
@@ -24,12 +27,27 @@ abstract class WalletVerifierApiPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<void> verifyAge(List<MobileDriversLicenseElement> elements,
-      {int? age}) {
-    throw UnimplementedError('verifyAge() has not been implemented.');
-  }
-
   Future<bool> isSupported() {
     throw UnimplementedError('isSupported() has not been implemented.');
+  }
+
+  Future<bool> isNationalIDCardRegionSupported(String region) {
+    throw UnimplementedError(
+      'isNationalIDCardRegionSupported() has not been implemented.',
+    );
+  }
+
+  Future<void> prepare({String? readerToken}) {
+    throw UnimplementedError('prepare() has not been implemented.');
+  }
+
+  Future<String> readerInstanceIdentifier() {
+    throw UnimplementedError(
+      'readerInstanceIdentifier() has not been implemented.',
+    );
+  }
+
+  Future<ValidationOutcome> requestDisplay(DisplayRequest request) {
+    throw UnimplementedError('requestDisplay() has not been implemented.');
   }
 }

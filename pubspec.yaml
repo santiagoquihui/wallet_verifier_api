@@ -1,21 +1,28 @@
 name: wallet_verifier_api
-description: "Verifier API Plugin for iOS Digital ID Verification"
-version: 0.0.8
+description: "Check IDs in Apple Wallet from Flutter with Apple's Verifier API: driver's licenses, national ID cards and photo IDs."
+version: 0.1.0
 repository: https://github.com/kiwis08/wallet_verifier_api
 
+issue_tracker: https://github.com/kiwis08/wallet_verifier_api/issues
+topics:
+  - wallet
+  - identity
+  - verification
+  - ios
+
 environment:
-  sdk: '>=3.4.1 <4.0.0'
-  flutter: '>=3.3.0'
+  sdk: ^3.10.0
+  flutter: '>=3.44.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  plugin_platform_interface: ^2.0.2
+  plugin_platform_interface: ^2.1.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

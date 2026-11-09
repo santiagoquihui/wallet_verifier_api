@@ -1,11 +1,6 @@
-// This is a basic Flutter integration test.
-//
-// Since integration tests run in a full Flutter application, they can interact
-// with the host side of a plugin implementation, unlike Dart unit tests.
-//
-// For more information about Flutter integration tests, please see
-// https://docs.flutter.dev/cookbook/testing/integration/introduction
-
+// Runs against the real iOS plugin. Display requests need an entitled app,
+// a supported iPhone and someone to present an ID, so only the calls that
+// return without user interaction are covered here.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -15,11 +10,20 @@ import 'package:wallet_verifier_api/wallet_verifier_api.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('getPlatformVersion test', (WidgetTester tester) async {
-    final WalletVerifierApi plugin = WalletVerifierApi();
-    final String? version = await plugin.getPlatformVersion();
-    // The version string depends on the host platform running the test, so
-    // just assert that some non-empty string is returned.
-    expect(version?.isNotEmpty, true);
+  final plugin = WalletVerifierApi();
+
+  testWidgets('isSupported answers', (tester) async {
+    expect(await plugin.isSupported(), isA<bool>());
+  });
+
+  testWidgets('isNationalIDCardRegionSupported answers', (tester) async {
+    expect(await plugin.isNationalIDCardRegionSupported('JP'), isA<bool>());
+  });
+
+  testWidgets('invalid region is rejected', (tester) async {
+    await expectLater(
+      plugin.displayNationalIDCard(region: '', elements: [DisplayElement.age]),
+      throwsA(isA<WalletVerifierException>()),
+    );
   });
 }
