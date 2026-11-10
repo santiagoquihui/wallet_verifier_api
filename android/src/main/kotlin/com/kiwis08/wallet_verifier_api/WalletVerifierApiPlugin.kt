@@ -36,6 +36,7 @@ import org.multipaz.context.initializeApplication
  *  - requestAndroidReaderPermissions
  *  - readMdlFromQr / readMdlFromNfc
  *  - getNfcStatus / openNfcSettings
+ *  - startNfcHold / stopNfcHold
  *  - cancelMdlRead
  * The iOS method names return `false` / `notSupported` here.
  */
@@ -50,6 +51,7 @@ class WalletVerifierApiPlugin :
     private lateinit var reader: MdlProximityReader
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var activeRead: Job? = null
+    private val readerMode = NfcReaderModeController()
 
     private var activityBinding: ActivityPluginBinding? = null
     private var pendingPermissionResult: Result? = null
@@ -65,6 +67,7 @@ class WalletVerifierApiPlugin :
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        readerMode.release()
         scope.cancel()
     }
 
@@ -82,6 +85,11 @@ class WalletVerifierApiPlugin :
             "readMdlFromNfc" -> readMdlFromNfc(call, result)
             "getNfcStatus" -> result.success(nfcStatus())
             "openNfcSettings" -> result.success(openNfcSettings())
+            "startNfcHold" -> result.success(startNfcHold())
+            "stopNfcHold" -> {
+                readerMode.stopHold()
+                result.success(null)
+            }
             "cancelMdlRead" -> {
                 activeRead?.cancel(CancellationException("Cancelled from Dart"))
                 result.success(null)
@@ -145,6 +153,17 @@ class WalletVerifierApiPlugin :
         return if (adapter.isEnabled) "enabled" else "disabled"
     }
 
+    /**
+     * Keeps NFC reader mode on for the activity until stopNfcHold, swallowing tags while no read
+     * runs. Returns whether reader mode is on now (false without NFC, with NFC off, or without
+     * an activity; the hold is still remembered and applied when possible).
+     */
+    private fun startNfcHold(): Boolean {
+        if (NfcAdapter.getDefaultAdapter(context) == null) return false
+        val on = readerMode.startHold()
+        return on && nfcStatus() == "enabled"
+    }
+
     private fun openNfcSettings(): Boolean {
         val launcher: Context = activityBinding?.activity ?: context
         for (action in listOf(Settings.ACTION_NFC_SETTINGS, Settings.ACTION_WIRELESS_SETTINGS)) {
@@ -206,7 +225,7 @@ class WalletVerifierApiPlugin :
             result.error("notSupported", "No foreground activity to enable NFC reader mode", null)
             return
         }
-        val tagReader = ActivityNfcTagReader { activityBinding?.activity }
+        val tagReader = ActivityNfcTagReader({ activityBinding?.activity }, readerMode)
         startRead(result) { reader.readFromNfc(tagReader, request) }
     }
 
@@ -228,6 +247,7 @@ class WalletVerifierApiPlugin :
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activityBinding = binding
         binding.addRequestPermissionsResultListener(this)
+        readerMode.attach(binding.activity)
     }
 
     override fun onDetachedFromActivityForConfigChanges() = onDetachedFromActivity()
@@ -238,6 +258,7 @@ class WalletVerifierApiPlugin :
     override fun onDetachedFromActivity() {
         activityBinding?.removeRequestPermissionsResultListener(this)
         activityBinding = null
+        readerMode.detach()
     }
 
     companion object {

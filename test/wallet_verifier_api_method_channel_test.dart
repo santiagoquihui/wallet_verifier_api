@@ -221,4 +221,20 @@ void main() {
     expect(await platform.openNfcSettings(), isTrue);
     expect(calls.last.method, 'openNfcSettings');
   });
+
+  test(
+    'startNfcHold returns the platform value, defaulting to false',
+    () async {
+      handler = (_) => true;
+      expect(await platform.startNfcHold(), isTrue);
+      expect(calls.last.method, 'startNfcHold');
+      handler = (_) => null;
+      expect(await platform.startNfcHold(), isFalse);
+    },
+  );
+
+  test('stopNfcHold calls the platform', () async {
+    await platform.stopNfcHold();
+    expect(calls.single.method, 'stopNfcHold');
+  });
 }

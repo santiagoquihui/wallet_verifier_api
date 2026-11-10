@@ -80,3 +80,14 @@
 - Tested on real devices (Galaxy Z Flip6 as the reader): Arizona Mobile ID via
   QR and Apple Wallet via NFC tap (negotiated handover, BLE transfer) both
   returned verified data from a trusted Arizona issuer.
+
+## 0.1.0-beta.3
+
+- **Android: hold NFC for the whole verify screen.** New `startNfcHold()` /
+  `stopNfcHold()`. While held, NFC reader mode stays on and tags are ignored
+  unless a `verifyMdlFromNfc` read is running, so a wallet that is still
+  touching the phone after a read (or touches it between reads, or during a QR
+  read) no longer brings up Android's "New tag scanned" sheet. Reader mode is
+  turned off when the activity pauses and back on when it resumes.
+- Without a hold, behavior is unchanged: reader mode is on only while
+  `verifyMdlFromNfc` waits for a tap.

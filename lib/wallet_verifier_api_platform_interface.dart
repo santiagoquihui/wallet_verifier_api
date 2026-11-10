@@ -88,6 +88,14 @@ abstract class WalletVerifierApiPlatform extends PlatformInterface {
     throw UnimplementedError('openNfcSettings() has not been implemented.');
   }
 
+  Future<bool> startNfcHold() {
+    throw UnimplementedError('startNfcHold() has not been implemented.');
+  }
+
+  Future<void> stopNfcHold() {
+    throw UnimplementedError('stopNfcHold() has not been implemented.');
+  }
+
   Future<void> cancelMdlRead() {
     throw UnimplementedError('cancelMdlRead() has not been implemented.');
   }

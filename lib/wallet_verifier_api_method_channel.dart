@@ -95,6 +95,13 @@ class MethodChannelWalletVerifierApi extends WalletVerifierApiPlatform {
   }
 
   @override
+  Future<bool> startNfcHold() async =>
+      await _invoke<bool>('startNfcHold') ?? false;
+
+  @override
+  Future<void> stopNfcHold() => _invoke<void>('stopNfcHold');
+
+  @override
   Future<void> cancelMdlRead() => _invoke<void>('cancelMdlRead');
 
   Future<T?> _invoke<T>(String method, [Object? arguments]) async {

@@ -81,6 +81,18 @@ class FakeWalletVerifierApiPlatform
 
   @override
   Future<void> cancelMdlRead() async => cancelled = true;
+
+  int holds = 0;
+  int releases = 0;
+
+  @override
+  Future<bool> startNfcHold() async {
+    holds++;
+    return true;
+  }
+
+  @override
+  Future<void> stopNfcHold() async => releases++;
 }
 
 void main() {
@@ -297,6 +309,22 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       await api.cancelMdlRead();
       expect(fake.cancelled, isTrue);
+    });
+
+    test('NFC hold forwards on Android', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      expect(await api.startNfcHold(), isTrue);
+      await api.stopNfcHold();
+      expect(fake.holds, 1);
+      expect(fake.releases, 1);
+    });
+
+    test('NFC hold is a no-op off Android', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      expect(await api.startNfcHold(), isFalse);
+      await api.stopNfcHold();
+      expect(fake.holds, 0);
+      expect(fake.releases, 0);
     });
   });
 }

@@ -26,11 +26,14 @@ import kotlin.coroutines.resumeWithException
  *
  * Multipaz's own Android reader drives a Compose bottom sheet (AndroidPromptModel), which a Flutter
  * app doesn't have; the waiting UI lives in Dart instead, so this reader shows no dialog.
- * Reader mode stays on only while [scan] is suspended and is turned off on success, error or
- * cancellation. Android also turns it off when the activity is paused.
+ * Reader mode is owned by [NfcReaderModeController]: tags go to this reader only while [scan] is
+ * suspended. Afterwards reader mode is turned off, unless the app holds NFC
+ * (`startNfcHold`), in which case it stays on and swallows tags so a wallet that is still
+ * touching the phone doesn't bring up Android's tag sheet.
  */
 internal class ActivityNfcTagReader(
     private val activityProvider: () -> Activity?,
+    private val readerMode: NfcReaderModeController,
 ) : NfcTagReader {
     override val external: Boolean get() = false
     override val dialogAlwaysShown: Boolean get() = false
@@ -50,14 +53,15 @@ internal class ActivityNfcTagReader(
             throw MdlReadException("nfcDisabled", "NFC is turned off")
         }
         return withContext(Dispatchers.Main) {
+            var handler: ((Tag) -> Unit)? = null
             try {
                 suspendCancellableCoroutine { continuation ->
                     val done = AtomicBoolean(false)
-                    val callback = NfcAdapter.ReaderCallback { tag: Tag? ->
-                        if (tag == null || done.get()) return@ReaderCallback
+                    val callback: (Tag) -> Unit = onTag@{ tag ->
+                        if (done.get()) return@onTag
                         val isoDep = IsoDep.get(tag) ?: run {
                             Log.i(TAG, "Ignoring non-ISO-DEP tag")
-                            return@ReaderCallback
+                            return@onTag
                         }
                         try {
                             isoDep.connect()
@@ -81,18 +85,11 @@ internal class ActivityNfcTagReader(
                             if (done.compareAndSet(false, true)) continuation.resumeWithException(e)
                         }
                     }
-                    adapter.enableReaderMode(
-                        activity,
-                        callback,
-                        NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or
-                            NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
-                        null,
-                    )
-                    Log.i(TAG, "NFC reader mode enabled")
+                    handler = callback
+                    readerMode.beginRead(callback)
                 }
             } finally {
-                runCatching { adapter.disableReaderMode(activity) }
-                Log.i(TAG, "NFC reader mode disabled")
+                handler?.let { readerMode.endRead(it) }
             }
         }
     }

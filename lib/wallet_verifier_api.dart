@@ -243,6 +243,8 @@ class WalletVerifierApi {
   /// static and negotiated handover (Apple Wallet, Google Wallet, Samsung
   /// Wallet); the data then moves over Bluetooth LE, or over NFC if that's all
   /// the wallet offers (the phones must then stay together).
+  /// Once the handover is done reader mode is released, unless you hold it
+  /// with [startNfcHold] (recommended, see there).
   ///
   /// [timeout] covers the wait for a tap and the transfer. The result and the
   /// verification rules are the same as [verifyMdlFromQr], with
@@ -279,8 +281,37 @@ class WalletVerifierApi {
     );
   }
 
+  /// Keeps NFC reader mode on for this app until [stopNfcHold], so a phone or
+  /// card touching this one never brings up Android's "New tag scanned" sheet.
+  /// Android only.
+  ///
+  /// Without a hold, reader mode is only on while [verifyMdlFromNfc] waits for
+  /// a tap; as soon as the handover is done Android gets NFC back, and a
+  /// wallet that is still touching the phone (the usual case) shows the system
+  /// sheet. Call this when your verify screen opens and [stopNfcHold] when it
+  /// closes: tags are then ignored while no read runs, and
+  /// [verifyMdlFromNfc] takes them while it does. QR reads are unaffected.
+  ///
+  /// The plugin turns reader mode off while the activity is paused and back
+  /// on when it resumes; calling this again on resume is harmless. Returns
+  /// whether reader mode is on now: `false` off Android, without NFC or with
+  /// NFC turned off (the hold still applies once NFC is on and the app
+  /// resumes).
+  Future<bool> startNfcHold() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    return _platform.startNfcHold();
+  }
+
+  /// Ends a [startNfcHold]. Reader mode stays on only while a
+  /// [verifyMdlFromNfc] read is in progress. Android only; safe to call
+  /// without a hold.
+  Future<void> stopNfcHold() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    return _platform.stopNfcHold();
+  }
+
   /// Cancels the read started by [verifyMdlFromQr] or [verifyMdlFromNfc], if
-  /// any, and turns NFC reader mode off.
+  /// any. NFC reader mode is turned off unless [startNfcHold] is holding it.
   Future<void> cancelMdlRead() async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
     return _platform.cancelMdlRead();
